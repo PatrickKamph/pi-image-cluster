@@ -2,7 +2,7 @@
 ultralytics
 
 # Image processing
-opencv-python-headless
+opencv-python
 
 # Image manipulating
 Pillow
