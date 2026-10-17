@@ -1,7 +1,6 @@
-
 import time
 from pathlib import Path
-#from multiprocessing import Pool 
+from multiprocessing import Pool 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"} #maybe add more later maybe not
 
@@ -37,6 +36,25 @@ def run_serial(image_paths, worker):
         "errors": errors,
         "total_seconds": time.perf_counter() - start,
     }
+
+def run_parallel(image_paths, worker, workers=None):
+    """compare to run serial, runs in parallel"""
+    start = time.perf_counter()
+    results = []
+    errors = []
+
+    with Pool(processes = workers) as pool:
+        for output in pool.imap_unordered(): #parameters unclear for now
+            if(output["sucess"]):
+                results.append(output["data"])
+            else:
+                errors.append({"path": output["path"], "error": output["error"]})
+
+    return {
+            "results": results,
+            "errors": errors,
+            "total_seconds": time.perf_counter() - start,
+        }
 
 
 if __name__ == "__main__":
