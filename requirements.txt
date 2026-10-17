@@ -1,1 +1,11 @@
+# Object detection engine
+ultralytics
 
+# Image processing
+opencv-python-headless
+
+# Image manipulating
+Pillow
+
+# Arrays
+numpy
