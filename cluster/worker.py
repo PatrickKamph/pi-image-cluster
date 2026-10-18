@@ -6,18 +6,20 @@ import cv2
 def process_image(path: str) -> dict:
     """temp function to work on driver"""
 
+    start = time.perf_counter()
+
     # The basic command, basically gets the image and lets u modify it
     image = cv2.imread(path)
 
     # bigger number = bigger blur
     k_size = 12
+
     blurred = cv2.blur(image, (k_size, k_size))
 
-
-
+    print(blurred.size)
 
     #This shows the image.
-    cv2.imshow('imagine', blurred)
+    #cv2.imshow('imagine', blurred)
 
     """
     This makes it so that it disappears once you press any key.
@@ -25,11 +27,10 @@ def process_image(path: str) -> dict:
     Without this the image would not show fyi, not necessary when running on the
     raspberry pi but for testing its helpful.
     """
-    cv2.waitKey(0)
+    #cv2.waitKey(0)
 
 
 
-    start = time.perf_counter()
     time.sleep(0.1) #remove later its pretend work
 
     return {
