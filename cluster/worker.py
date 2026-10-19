@@ -6,10 +6,13 @@ from PIL import Image
 from ultralytics import YOLO
 
 
-model = YOLO("../models/yolo11s.pt")
+
 
 
 def process_image(path: str) -> dict:
+
+    model = YOLO("../models/yolo11s.pt")
+
     """temp function to work on driver"""
 
     start = time.perf_counter()
