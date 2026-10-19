@@ -80,7 +80,7 @@ def process_image(path: str) -> dict:
 
 
 
-    time.sleep(0.1) #remove later its pretend work
+    #time.sleep(0.1) old code
 
     return {
         "path": path,
