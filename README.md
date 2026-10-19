@@ -13,7 +13,7 @@ pip install -r requirements.txt
 
 ## How to run it
 
-put images in images/, then run from the project root
+run from the project root
 ```bash
-python -m cluster.driver
+python benchmark.py
 ```
