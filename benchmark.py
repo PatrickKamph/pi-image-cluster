@@ -9,7 +9,7 @@ from cluster.driver import find_images, run_serial, run_parallel
 from cluster.worker import process_image
 
 REPEATS = 3
-IMAGE_DIR = "images"
+IMAGE_DIR = "data"
 
 
 def extract_processed_paths(results):
