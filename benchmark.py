@@ -9,7 +9,55 @@ from cluster.driver import find_images, run_serial, run_parallel
 from cluster.worker import process_image
 
 REPEATS = 3
+ON_VALID = "flag" 
 
+def extract_processed_paths(results):
+    """helper method to extract path set from a run's results"""
+    paths = set()
+
+    for r in results:
+        if isinstance(r, dict):
+            path = r["path"]
+        elif isinstance(r, tuple):
+            path = r[0]
+        else:
+            path = r
+
+        paths.add(str(path))
+
+    return paths
+
+
+def validate_run(out, paths, serial_paths=None):
+    """checks errors, and compares if number of results matches number of paths"""
+    results = out.get("results", [])
+    errors = out.get("errors", [])
+
+    if len(errors) > 0:
+        message = str(len(errors)) + " error(s) occurred"
+        return False, message
+
+    total = len(results) + len(errors)
+
+    if total != len(paths):
+        message = ("count mismatch (" + str(len(results)) + " + " + str(len(errors)) + " != " + str(len(paths)) + ")")
+        return False, message
+
+    processed = extract_processed_paths(results)
+
+
+    if serial_paths is not None:
+        expected = serial_paths
+    else:
+        expected = set()
+
+        for p in paths:
+            expected.add(str(p))
+
+    if processed != expected:
+        return False, "processed paths do not match serial run"
+
+    return True, "ok"
 
 def time_serial(paths, worker, repeats):
     """run serial multiple times and return the median time"""
@@ -49,13 +97,8 @@ def save_results(rows, out_dir):
 
     print(f"\nSaved results to: {filename}")
 
-
 def main():
-    """
-    waiting on proper implementation of driver for accurate results
-    note: when running BUNCH of popups
-    
-    """
+
     paths = find_images("images")
 
     worker_counts = {1, 2, 4, 8, os.cpu_count()}
