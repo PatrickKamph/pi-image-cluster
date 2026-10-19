@@ -1,6 +1,12 @@
 import os
 import time
 import cv2
+import numpy as np
+from PIL import Image
+from ultralytics import YOLO
+
+
+model = YOLO("yolo11s.pt")
 
 
 def process_image(path: str) -> dict:
@@ -8,15 +14,49 @@ def process_image(path: str) -> dict:
 
     start = time.perf_counter()
 
+    # just incase there aint no image cuz for some reason it couldn't tell if there was an image or not
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Image not found at path: {os.path.abspath(path)}")
+
     # The basic command, basically gets the image and lets u modify it
     image = cv2.imread(path)
 
+    results = model(image, conf=0.2, iou=0.5) #Change confidence value depending on the weights. Default was 0.25 but the model was having trouble with detecting the tree lol
+    #IOU makes it so that u cant have two boxes too close to each other
+
+    result = results[0]
+
+
+    # This is all to check if the model actually detected something cuz if it didnt it doesnt tell u :/
+    if len(result.boxes) == 0:
+        print("No objects in the image!")
+    else:
+        for box in result.boxes:
+            cls = int(box.cls[0]) # cls means classification btw
+            conf = float(box.conf[0]) # How sure it is that thing
+            name = model.names[cls]
+            print(f"Detected {name} w/ confidence {conf:.2f}") #Gonna round confidence to 2 digits #thank u docs :)
+
+    new_img = result.plot()
+    cv2.imwrite('output.png', new_img)
+
+
+    #print(results)
+
+    #plt.imshow(fin_img)
+    #plt.axis("off")
+    #plt.show()
+
+
+
+    """ Blurring testing
     # bigger number = bigger blur
     k_size = 12
 
     blurred = cv2.blur(image, (k_size, k_size))
 
     print(blurred.size)
+    """
 
     #This shows the image.
     #cv2.imshow('imagine', blurred)

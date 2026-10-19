@@ -1,11 +1,4 @@
-# Object detection engine
 ultralytics
-
-# Image processing
-opencv-python
-
-# Image manipulating
+opencv-python-headless
 Pillow
-
-# Arrays
 numpy
