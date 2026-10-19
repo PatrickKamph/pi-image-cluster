@@ -6,7 +6,7 @@ from PIL import Image
 from ultralytics import YOLO
 
 
-model = YOLO("yolo11s.pt")
+model = YOLO("../models/yolo11s.pt")
 
 
 def process_image(path: str) -> dict:
@@ -37,8 +37,13 @@ def process_image(path: str) -> dict:
             name = model.names[cls]
             print(f"Detected {name} w/ confidence {conf:.2f}") #Gonna round confidence to 2 digits #thank u docs :)
 
+
+
+    """ To visualize results if needed for testing
     new_img = result.plot()
     cv2.imwrite('output.png', new_img)
+    """
+
 
 
     #print(results)
