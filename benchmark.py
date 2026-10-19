@@ -59,28 +59,49 @@ def validate_run(out, paths, serial_paths=None):
 
     return True, "ok"
 
-def time_serial(paths, worker, repeats):
+def time_serial(paths, worker, repeats, serial_paths = None):
     """run serial multiple times and return the median time"""
     times = []
 
     for i in range(repeats):
         out = run_serial(paths, worker)
+        ok, reason = validate_run(out, paths, serial_paths)
+        
+        if not ok:
+            raise RuntimeError(f"Fatal: invalid baseline on repeat {i + 1}: {reason}")
+        if serial_paths is None:
+            serial_paths = extract_processed_paths(out.get("results", []))
+
         times.append(out["total_seconds"])
 
-    return statistics.median(times)
+    return statistics.median(times), serial_paths
 
 
-def time_parallel(paths, worker, n_workers, repeats):
-    """same, for run_parallel with a given worker count"""
-    times = [
-        run_parallel(paths, worker, workers=n_workers)["total_seconds"]
-        for _ in range(repeats)
-    ]
-    return statistics.median(times)
+def time_parallel(paths, worker, n_workers, repeats, serial_paths):
+    """run parallal multiple times and return the median time"""
+    times = []
+    row_valid = True
+    reasons = []
+
+    for i in range(repeats):
+        out = run_parallel(paths, worker, workers=n_workers)
+        ok, reason = validate_run(out, paths, serial_paths)
+        
+        if not ok:
+            row_valid = False
+            reasons.append(f"repeat {i + 1}: {reason}")
+
+        times.append(out["total_seconds"])
+
+    return statistics.median(times), row_valid, "; ".join(reasons)
 
 
 def save_results(rows, out_dir):
     """save benchmark results to a CSV file"""
+    if not rows:
+        print("\nNo valid rows to save")
+        return
+    
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -98,44 +119,59 @@ def save_results(rows, out_dir):
     print(f"\nSaved results to: {filename}")
 
 def main():
-
     paths = find_images("images")
 
-    worker_counts = {1, 2, 4, 8, os.cpu_count()}
+    if not paths:
+        print("No images found")
+        return
+
+    worker_counts = {1, 2, 4, 8, os.cpu_count() or 1}
     worker_counts = sorted(worker_counts)
 
-    # 1. warm-up run
     print("Warm-up...")
     run_serial(paths, process_image)
 
-    # 2. serial baseline
-    print("Timing serial baseline...")
-    baseline = time_serial(paths, process_image, REPEATS)
 
-    # 3. benchmark each worker count
+    print("Timing serial baseline...")
+    baseline, serial_paths = time_serial(paths, process_image, REPEATS)
+
+    print(f"Serial baseline: {baseline:.3f} seconds")
+
+
     rows = []
 
-    print(f"\n{'Workers':<10}{'Time (s)':<12}{'Speedup':<10}{'Efficiency':<12}") #neat columns
-    print("-" * 44)
+    print(
+        f"\n{'Workers':<10}{'Time (s)':<12}"
+        f"{'Speedup':<10}{'Efficiency':<12}{'Valid':<10}"
+    )
+    print("-" * 54)
 
     for w in worker_counts:
-        t = time_parallel(paths, process_image, w, REPEATS)
+        t, row_valid, reason = time_parallel(paths, process_image, w, REPEATS, serial_paths)
 
-        speedup = baseline / t #how many times faster parallel processing is than serial processing
-        efficiency = speedup / w #speedup per worker, expressed as a percentage
+        speedup = baseline / t if t > 0 else 0
+        efficiency = speedup / w
 
         row = {
             "workers": w,
             "seconds": round(t, 4),
             "speedup": round(speedup, 2),
             "efficiency": round(efficiency, 2),
+            "valid": row_valid,
+            "validation_errors": reason,
         }
 
         rows.append(row)
 
-        print(f"{w:<10}{t:<12.3f}{speedup:<10.2f}{efficiency:<12.2%}") #headers
+        print(
+            f"{w:<10}{t:<12.3f}{speedup:<10.2f}"
+            f"{efficiency:<12.2%}{str(row_valid):<10}"
+        )
 
-    # 4. save results to CSV
+        if not row_valid:
+            print(f"  Problem: {reason}")
+
+
     save_results(rows, Path("results"))
 
 

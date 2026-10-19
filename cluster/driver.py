@@ -86,12 +86,7 @@ if __name__ == "__main__":
     )
 
     #parallel
-    """
-    worker file logic is a bit off, mostly timer placement and lack of function
-    results in parallel and serial running at the same time which should not be the case
-    we would expect to see parallel take longer with the 1 image dataset
-    with it picking up once we have like 20+
-    """
+
     out_para = run_parallel(paths, process_image)
     print(
         f"{len(out_para['results'])} done, {len(out_para['errors'])} errors, "
