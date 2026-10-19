@@ -9,7 +9,8 @@ from cluster.driver import find_images, run_serial, run_parallel
 from cluster.worker import process_image
 
 REPEATS = 3
-ON_VALID = "flag" 
+IMAGE_DIR = "images"
+
 
 def extract_processed_paths(results):
     """helper method to extract path set from a run's results"""
@@ -119,7 +120,7 @@ def save_results(rows, out_dir):
     print(f"\nSaved results to: {filename}")
 
 def main():
-    paths = find_images("images")
+    paths = find_images(IMAGE_DIR)
 
     if not paths:
         print("No images found")
