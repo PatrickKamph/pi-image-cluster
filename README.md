@@ -12,7 +12,7 @@ pip install -r requirements.txt
 ```
 
 ## How to run it
-The same small dataset of 100 as we used for testing:
+The same small dataset of 100 as we used for testing (Only run once):
 ```bash
 python scripts/build_dataset.py --num-images 100 --seed 42
 ```
