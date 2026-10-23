@@ -16,19 +16,25 @@ MODEL_PATH = PROJECT_ROOT / "models" / "yolo11s.pt"
 model: YOLO | None = None
 
 
-
-# Fix to ensure threads are actually set to 0 since it kept being reset back.
-# Without this initalization the threads arent properly set to one for each worker drone, which ruins the time.
+# Fix to ensure threads are actually set to 1 per worker.
+# Ultralytics lazily calls select_device() during the first inference call,
+# which internally overrides torch.set_num_threads to min(8, cpu_count - 1) (8 threads on this CPU).
+# We execute a single warm-up pass with dummy data so lazy initialization happens immediately,
+# and then clamp torch.set_num_threads back to 1. This prevents massive CPU thread oversubscription probably
 def init_worker():
     # This is just to make sure the root is properly initialized from the yolo stuff
     global model
 
-
-    torch.set_num_threads(1)
     cv2.setNumThreads(0)
 
     if model is None:
         model = YOLO(str(MODEL_PATH))
+        # Run a dummy inference pass to force Ultralytics predictor setup and select_device()
+        dummy = np.zeros((64, 64, 3), dtype=np.uint8)
+        model(dummy, verbose=False)
+
+    # Force PyTorch intra-op threads to 1 per worker process AFTER model/predictor initialization
+    torch.set_num_threads(1)
 
 
 def process_image(path: str) -> dict:
@@ -38,7 +44,9 @@ def process_image(path: str) -> dict:
     if model is None:
         init_worker()
 
-
+    # Ensure thread count remains clamped to 1 for each image task
+    if torch.get_num_threads() != 1:
+        torch.set_num_threads(1)
 
     start = time.perf_counter()
 

@@ -12,6 +12,11 @@ os.environ["MKL_NUM_THREADS"] = "1"
 
 import torch
 torch.set_num_threads(1)
+#  Limit inter-op parallelism threads to 1 to eliminate background thread contention
+try:
+    torch.set_num_interop_threads(1)
+except RuntimeError:
+    pass
 
 import cv2
 cv2.setNumThreads(0)
@@ -84,6 +89,9 @@ def validate_run(out, paths, serial_paths=None):
 def time_serial(paths, worker, repeats, serial_paths = None):
     """run serial multiple times and return the median time"""
     times = []
+
+    # Ensure main process PyTorch intra-op threads are strictly locked to 1
+    torch.set_num_threads(1)
 
     for i in range(repeats):
         out = run_serial(paths, worker)
@@ -158,6 +166,9 @@ def main():
     worker_counts = sorted(worker_counts)
 
     print("Warm-up...")
+    # Initialize the model, execute the dummy warm-up, and clamp threads to 1
+    # before running the serial baseline so baseline timing is a true single-threaded reference.
+    init_worker()
     run_serial(paths, process_image)
 
 
