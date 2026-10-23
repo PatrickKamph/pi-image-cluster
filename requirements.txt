@@ -1,5 +1,7 @@
 ultralytics
-opencv-python-headless
 Pillow
 numpy
 pycocotools
+requests
+torch
+opencv-python

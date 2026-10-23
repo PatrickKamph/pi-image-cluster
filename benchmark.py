@@ -1,12 +1,30 @@
 import csv
 import os
+
+
+"""
+Sets threads to 1 before initializing YOLO stuff.
+we NEED to have this at the top before we import torch or anything else, or else YOLO will ignore the
+thread limit we set.
+"""
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
+import torch
+torch.set_num_threads(1)
+
+import cv2
+cv2.setNumThreads(0)
+
 import platform
 import statistics
 from datetime import datetime
 from pathlib import Path
 
 from cluster.driver import find_images, run_serial, run_parallel
-from cluster.worker import process_image
+from cluster.worker import process_image, init_worker
+
+from multiprocessing import Pool
 
 REPEATS = 3
 IMAGE_DIR = "data"
@@ -60,18 +78,24 @@ def validate_run(out, paths, serial_paths=None):
 
     return True, "ok"
 
+
+# Added serial_pats = None at the end so that it is forced to look at all 100 images. If it fails at doing that,
+# it will give an error :)
 def time_serial(paths, worker, repeats, serial_paths = None):
     """run serial multiple times and return the median time"""
     times = []
 
     for i in range(repeats):
         out = run_serial(paths, worker)
+
+
+        if serial_paths is None:
+           serial_paths = extract_processed_paths(out.get("results", []))
+
         ok, reason = validate_run(out, paths, serial_paths)
         
         if not ok:
             raise RuntimeError(f"Fatal: invalid baseline on repeat {i + 1}: {reason}")
-        if serial_paths is None:
-            serial_paths = extract_processed_paths(out.get("results", []))
 
         times.append(out["total_seconds"])
 
@@ -84,15 +108,19 @@ def time_parallel(paths, worker, n_workers, repeats, serial_paths):
     row_valid = True
     reasons = []
 
-    for i in range(repeats):
-        out = run_parallel(paths, worker, workers=n_workers)
-        ok, reason = validate_run(out, paths, serial_paths)
-        
-        if not ok:
-            row_valid = False
-            reasons.append(f"repeat {i + 1}: {reason}")
 
-        times.append(out["total_seconds"])
+    # Made it stop calling run parallel over and over which destroyed the workers anytime it was done measuring for
+    # that specific core count. Wont be too much of a change on the final portion on the pi's tho.
+    with Pool(processes=n_workers, initializer=init_worker) as pool:
+        for i in range(repeats):
+            out = run_parallel(paths, worker, workers=n_workers, pool=pool)
+            ok, reason = validate_run(out, paths, serial_paths)
+
+            if not ok:
+                row_valid = False
+                reasons.append(f"repeat {i + 1}: {reason}")
+
+            times.append(out["total_seconds"])
 
     return statistics.median(times), row_valid, "; ".join(reasons)
 

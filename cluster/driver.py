@@ -1,7 +1,10 @@
+import os
 import time
 from pathlib import Path
 from multiprocessing import Pool 
 from functools import partial
+from cluster.worker import init_worker
+
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"} #maybe add more later maybe not
 
@@ -52,25 +55,68 @@ def _safe_call(worker, path):
             "path": path
         }
 
-def run_parallel(image_paths, worker, workers=None):
+
+
+def run_parallel(image_paths, worker, workers=None, pool = None):
     """compare to run serial, runs in parallel"""
-    start = time.perf_counter()
+    #
     results = []
     errors = []
     workerP = partial(_safe_call, worker) #this why we can call helper method within imap
 
-    with Pool(processes = workers) as pool: #try/finally replacement better for files
-        for output in pool.imap_unordered(workerP, image_paths): 
-            if(output["success"]):
+    actual_workers = workers or 1
+
+    # need ts for the pi's cuz they got teeny tiny cores
+    chonky = max(1, len(image_paths) // (workers * 4))
+
+    """
+        
+    Makes it so that instead of taking one image at a time, it gonna send a bundle of images. Helps cuz it means there's
+    less processing (runs every time it wants a new image before). Trying every method to save time :fire: :aura: :sandrone:
+    
+    
+    
+    10/23/2026 - Yanis
+    I changed this the most here tbh
+    
+    The _execute function/method allows benchmark to pass the photos in the same pool instead of making a new one
+    every time, which I think cut down speeds? probably. It cut down the processes at least. Half this stuff was on
+    random stackoverflow boards.
+    
+    Also, I changed the start to be inside the execute function instead of outside, since it was including the amount of time
+    it took to initialize the model and the latency.
+    """
+
+    def _execute(p):
+        start = time.perf_counter()
+        for output in p.imap_unordered(workerP, image_paths, chunksize=chonky):
+            if output["success"]:
                 results.append(output["data"])
             else:
                 errors.append({"path": output["path"], "error": output["error"]})
+        return time.perf_counter() - start
+
+    if pool is not None:
+        elapsed = _execute(pool)
+    else:
+
+        """
+        This is honestly the most important part. Since its being initialized with init_worker (from worker.py),
+        all the threads are actually being locked to one per worker, so when being run, it isnt going back to the YOLO
+        base settings of taking ur CPU's best cores. This actually makes it so that we are parallel processing
+        everything! It also makes it so we arent reinitializing the model and the threads every time we call the worker
+        file.
+        """
+        with Pool(processes=workers, initializer=init_worker) as p:
+            elapsed = _execute(p)
 
     return {
-            "results": results,
-            "errors": errors,
-            "total_seconds": time.perf_counter() - start,
-        }
+        "results": results,
+        "errors": errors,
+        "total_seconds": elapsed,
+    }
+
+
 
 
 if __name__ == "__main__":
