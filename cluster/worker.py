@@ -79,7 +79,7 @@ def process_image(path: str) -> dict:
 
     return {
         "path": path,
-        "result": os.path.getsize(path),
+        "result": os.path.getsize(path), #REMOVE SOON
         "seconds": time.perf_counter() - start,
     }
 
