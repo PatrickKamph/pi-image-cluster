@@ -162,8 +162,9 @@ def main():
         print("No images found")
         return
 
-    worker_counts = {1, 2, 4, 8, os.cpu_count() or 1}
-    worker_counts = sorted(worker_counts)
+    max_workers = os.cpu_count() or 1
+    worker_counts = {1, 2, 3, 4, 6, 8, 12, 16, max_workers}
+    worker_counts = sorted(w for w in worker_counts if w <= max_workers)
 
     print("Warm-up...")
     # Initialize the model, execute the dummy warm-up, and clamp threads to 1
