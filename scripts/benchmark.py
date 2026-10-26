@@ -32,7 +32,7 @@ from cluster.worker import process_image, init_worker
 from multiprocessing import Pool
 
 REPEATS = 3
-IMAGE_DIR = "data"
+IMAGE_DIR = "../data"
 
 
 def extract_processed_paths(results):
@@ -213,7 +213,7 @@ def main():
             print(f"  Problem: {reason}")
 
 
-    save_results(rows, Path("results"))
+    save_results(rows, Path("../results"))
 
 
 if __name__ == "__main__":
