@@ -19,5 +19,5 @@ python scripts/build_dataset.py --num-images 100 --seed 42
 
 Run from the project root:
 ```bash
-python benchmark.py
+python scripts/benchmark.py
 ```
