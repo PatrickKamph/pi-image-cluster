@@ -37,7 +37,7 @@ def init_worker():
     torch.set_num_threads(1)
 
 
-def process_image(path: str) -> dict:
+def process_image(path: str) -> list[str]:
     """temp function to work on driver"""
 
     global model
@@ -76,12 +76,62 @@ def process_image(path: str) -> dict:
             print(f"Detected {name} w/ confidence {conf:.2f}") #Gonna round confidence to 2 digits #thank u docs :)
     """
 
+    detections = []
 
-    return {
-        "path": path,
-        "result": os.path.getsize(path), #REMOVE SOON
-        "seconds": time.perf_counter() - start,
-    }
+    for box in results.boxes:
+        subDict = {}
+
+        cls = int(box.cls[0])
+        conf = float(box.conf[0])
+        name = model.names[cls]
+
+        subDict['name'] = name
+        subDict['confidence'] = round(conf, 2)
+
+        detections.append(subDict)
+
+    return detections
+
+
+
+
+"""
+
+file_names = [...]
+
+run_serial returns a dictionary.
+
+run_serial['results'] returns a dictionary, with the file name as the key and a list of dictionaries as the values
+
+serial_outputs = run_serial['results']
+
+
+
+for file in file_names:
+    if serial_outputs[file] == parallel_outputs[file]:
+        pass
+    else:
+        # Find the avg confidence for serial and for parallel
+        # Compare
+        
+        serial_avg = 0
+        for element in serial_outputs[file]:
+            serial_avg += element['confidence']
+        
+        serial_avg = serial_avg // len(serial_outputs[file])
+        
+        parallel_avg = 0
+        for element in parallel_outputs[file]:
+            parallel_avg += element['confidence']
+        
+        parallel_avg = parallel_avg // len(parallel_outputs[file])
+        
+        return abs(parallel_avg - serial_avg)
+        
+
+
+"""
+
 
 
 """ This was for testing. Didnt want to touch the driver file to test this.

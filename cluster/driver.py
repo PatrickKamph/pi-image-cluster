@@ -22,15 +22,27 @@ def find_images(folder):
     image_paths.sort()
     return image_paths
 
+def image_list(image_paths):
+    best = []
+    for path in image_paths:
+        best.append(Path(path).name)
+
+    return best
+
 def run_serial(image_paths, worker):
     """process images one at a time, this is the baseline"""
     start = time.perf_counter()
-    results = []
+    results = {}
     errors = []
 
     for path in image_paths:
         try:
-            results.append(worker(path))
+            file_name = Path(path).name
+
+            results[file_name] = worker(path)
+
+
+            #results.append(worker(path))
         except Exception as e:
             errors.append({"path": path, "error": str(e)})
 
@@ -39,6 +51,11 @@ def run_serial(image_paths, worker):
         "errors": errors,
         "total_seconds": time.perf_counter() - start,
     }
+
+
+
+
+
 
 def _safe_call(worker, path):
     """safely execute worker on path, catching any exceptions"""
@@ -60,7 +77,7 @@ def _safe_call(worker, path):
 def run_parallel(image_paths, worker, workers=None, pool = None):
     """compare to run serial, runs in parallel"""
     #
-    results = []
+    results = {}
     errors = []
     workerP = partial(_safe_call, worker) #this why we can call helper method within imap
 
@@ -91,7 +108,10 @@ def run_parallel(image_paths, worker, workers=None, pool = None):
         start = time.perf_counter()
         for output in p.imap_unordered(workerP, image_paths, chunksize=chonky):
             if output["success"]:
-                results.append(output["data"])
+                results[Path(output["path"]).name] = output["data"]
+
+
+                #results.append(output["data"])
             else:
                 errors.append({"path": output["path"], "error": output["error"]})
         return time.perf_counter() - start
