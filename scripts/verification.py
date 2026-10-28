@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-
+import math
 
 def load_run(path):
     """
@@ -101,3 +101,65 @@ def check_meta(reference, candidate):
 
     return errors, warnings
 
+
+def compare_detections(serial_results: dict, parallel_results: dict, image_list: list[str]) -> tuple[
+    list[str], list[str]]:
+    serial_keys = set(serial_results.keys())
+    parallel_keys = set(parallel_results.keys())
+
+    warnings = [image for image in image_list if image not in serial_keys]  #
+    errors = [image for image in image_list if image not in parallel_keys]  # candidate
+
+    return errors, warnings
+
+    """ Returns tuple of total mismatch and avg confidence discrepancy. Temp code if we wanna use in future
+
+        if serial_keys != parallel_keys:
+        missing = serial_keys - parallel_keys
+        extra = parallel_keys - serial_keys
+
+        return False, f"Cannot iterate keys, they are mismatched. Missing {len(missing)} files, Have {len(extra)} extra files."
+
+
+    diff_dict = {}
+
+    all_files = set(serial_keys.union(parallel_keys))
+
+    for file_name in all_files:
+        s_boxes, p_boxes = serial_results.get(file_name), parallel_results.get(file_name)
+
+
+        # If the file is missing in one or the other, set the total discrepancies to the size and the avg difference to 100%.
+        if s_boxes is None or p_boxes is None:
+            count = len(s_boxes) if s_boxes else len(p_boxes)
+
+            diff_dict[file_name] = (count, 1.0)
+            continue
+
+        # If they completely match then we keep going so it doesnt accidentally set the file as having a discrepancy.
+        if s_boxes == p_boxes:
+            continue
+
+        box_count_diff = abs(len(s_boxes) - len(p_boxes))
+
+
+        # The avg for serial
+        if len(s_boxes) > 0:
+            s_avg = sum(item['confidence'] for item in s_boxes) / len(s_boxes)
+        else:
+            s_avg = 0.0
+
+        # The avg for parallel
+        if len(p_boxes) > 0:
+            p_avg = sum(item['confidence'] for item in p_boxes) / len(p_boxes)
+        else:
+            p_avg = 0.0
+
+        diff = abs(p_avg - s_avg)
+
+        # Just to make sure any super small discrepancies dont flag as bad
+        if diff > conf_tolerance:
+            diff_dict[file_name] = round(diff, 4)
+
+    return diff_dict
+    """

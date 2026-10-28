@@ -22,7 +22,7 @@ def find_images(folder):
     image_paths.sort()
     return image_paths
 
-def image_list(image_paths):
+def image_list(image_paths) -> list[str]:
     best = []
     for path in image_paths:
         best.append(Path(path).name)

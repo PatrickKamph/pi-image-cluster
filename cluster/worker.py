@@ -118,15 +118,21 @@ for file in file_names:
         for element in serial_outputs[file]:
             serial_avg += element['confidence']
         
-        serial_avg = serial_avg // len(serial_outputs[file])
+        if len(serial_outputs[file] == 0:
+            serial_avg = serial_avg / len(serial_outputs[file])
+        else:
+            serial_avg = 0
         
         parallel_avg = 0
         for element in parallel_outputs[file]:
             parallel_avg += element['confidence']
         
-        parallel_avg = parallel_avg // len(parallel_outputs[file])
+        if len(parallel_outputs[file] == 0:
+            parallel_avg = parallel_avg / len(parallel_outputs[file])
+        else:
+            parallel_avg = 0
         
-        return abs(parallel_avg - serial_avg)
+        return math.isclose(parallel_avg, serial_avg, abs_tol=1e-4)
         
 
 
