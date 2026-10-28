@@ -48,6 +48,12 @@ def check_meta(reference, candidate):
     ref_meta = reference.get("meta", {})
     cand_meta = candidate.get("meta", {})
 
+    if not isinstance(ref_meta, dict):
+        return ["reference 'meta' is not a dictionary"], []
+    
+    if not isinstance(cand_meta, dict):
+        return ["candidate 'meta' is not a dictionary"], []
+
     errors = []
     warnings = []
 
@@ -58,14 +64,12 @@ def check_meta(reference, candidate):
         if key not in ref_meta:
             errors.append(f"'{key}' missing from reference")
 
-        if key not in cand_meta:
+        elif key not in cand_meta:
             errors.append(f"'{key}' missing from candidate")
 
-        if key in ref_meta and key in cand_meta:
+        elif key in ref_meta and key in cand_meta:
             if ref_meta[key] != cand_meta[key]:
-                errors.append(
-                    f"'{key}' mismatch: reference has {ref_meta[key]}, candidate has {cand_meta[key]}"
-                )
+                errors.append(f"'{key}' mismatch: reference has {ref_meta[key]}, candidate has {cand_meta[key]}")
 
     # check library versions (warnings only)
     if "library_versions" not in ref_meta:
@@ -90,9 +94,10 @@ def check_meta(reference, candidate):
 
                 if pkg in ref_libs and pkg in cand_libs:
                     if ref_libs[pkg] != cand_libs[pkg]:
-                        warnings.append(
-                            f"package '{pkg}' mismatch: reference has {ref_libs[pkg]}, candidate has {cand_libs[pkg]}"
-                        )
+                        warnings.append(f"package '{pkg}' mismatch: reference has {ref_libs[pkg]}, candidate has {cand_libs[pkg]}")
+
+        else:
+            warnings.append("'library_versions' is not a dictionary in one of the runs")
 
     return errors, warnings
 
