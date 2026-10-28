@@ -26,8 +26,9 @@ import statistics
 from datetime import datetime
 from pathlib import Path
 
-from cluster.driver import find_images, run_serial, run_parallel
+from cluster.driver import find_images, run_serial, run_parallel, image_list
 from cluster.worker import process_image, init_worker
+from scripts.verification import compare_detections
 
 from multiprocessing import Pool
 
@@ -54,32 +55,28 @@ def extract_processed_paths(results):
 
 def validate_run(out, paths, serial_paths=None):
     """checks errors, and compares if number of results matches number of paths"""
+
     results = out.get("results", [])
-    errors = out.get("errors", [])
+    err_list = out.get("errors", [])
 
-    if len(errors) > 0:
-        message = str(len(errors)) + " error(s) occurred"
-        return False, message
+    if err_list:
+        return False, f'{len(err_list)} error(s) occurred'
 
-    total = len(results) + len(errors)
-
-    if total != len(paths):
-        message = ("count mismatch (" + str(len(results)) + " + " + str(len(errors)) + " != " + str(len(paths)) + ")")
-        return False, message
-
-    processed = extract_processed_paths(results)
+    image_lists = image_list(paths)
 
 
-    if serial_paths is not None:
-        expected = serial_paths
-    else:
-        expected = set()
+    expected = len(image_lists)
+    processed = set(results.keys())
 
-        for p in paths:
-            expected.add(str(p))
+    missing = expected - processed
+    if missing:
+        return False
 
-    if processed != expected:
-        return False, "processed paths do not match serial run"
+    extra = processed - expected
+    if extra:
+        return False
+
+
 
     return True, "ok"
 
@@ -170,6 +167,19 @@ def main():
     # Initialize the model, execute the dummy warm-up, and clamp threads to 1
     # before running the serial baseline so baseline timing is a true single-threaded reference.
     init_worker()
+
+    # Making a list of all image files taken from find_images. Since its sourced from find_images, all suffix's should
+    # be only .jpg, .png, and .jpeg
+    image_lists = image_list(paths)
+
+
+    """
+    compare_detections(serial_results, parallel_results, image_lists)
+
+    Where would we insert comapre detections? How do we get the results?
+    
+    """
+
     run_serial(paths, process_image)
 
 
