@@ -32,6 +32,7 @@ from scripts.verification import compare_detections
 
 from multiprocessing import Pool
 
+
 REPEATS = 3
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 IMAGE_DIR = PROJECT_ROOT / "data"
