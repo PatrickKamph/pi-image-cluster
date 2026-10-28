@@ -33,8 +33,9 @@ from scripts.verification import compare_detections
 from multiprocessing import Pool
 
 REPEATS = 3
-IMAGE_DIR = "../data"
-
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+IMAGE_DIR = PROJECT_ROOT / "data"
+RESULTS_DIR = PROJECT_ROOT / "results"
 
 def extract_processed_paths(results):
     """helper method to extract path set from a run's results"""
@@ -59,20 +60,21 @@ def validate_run(out, paths, serial_paths=None):
     results = out.get("results", [])
     err_list = out.get("errors", [])
 
-    if err_list:
+    if len(err_list) > 0:
         return False, f'{len(err_list)} error(s) occurred'
 
     image_lists = image_list(paths)
 
 
-    expected = len(image_lists)
-    processed = set(results.keys())
+    expected = image_lists
 
-    missing = expected - processed
+    original = set(results.keys())
+    missing = [item for item in original if item not in expected]
     if missing:
         return False
 
-    extra = processed - expected
+
+    extra = [item for item in expected if item not in original]
     if extra:
         return False
 
@@ -223,7 +225,7 @@ def main():
             print(f"  Problem: {reason}")
 
 
-    save_results(rows, Path("../results"))
+    save_results(rows, RESULTS_DIR)
 
 
 if __name__ == "__main__":

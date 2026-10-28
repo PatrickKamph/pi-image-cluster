@@ -78,7 +78,9 @@ def process_image(path: str) -> list[str]:
 
     detections = []
 
-    for box in results.boxes:
+    result = results[0]
+
+    for box in result.boxes:
         subDict = {}
 
         cls = int(box.cls[0])
@@ -144,11 +146,11 @@ for file in file_names:
 Theoretically, you would run a for loop in driver with each directory,
 and run worker.process_image(filepath). Just gotta find a way to
 allocate images to each worker yk.
+"""
 
 
 if __name__ == '__main__':
 
-    img_path = os.path.join('..', 'images', 'image1.jpg')
+    img_path = os.path.join('..', 'data', '000000008282.jpg')
 
     process_image(img_path)
-"""

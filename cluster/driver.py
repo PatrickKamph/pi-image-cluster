@@ -37,10 +37,9 @@ def run_serial(image_paths, worker):
 
     for path in image_paths:
         try:
+
             file_name = Path(path).name
-
             results[file_name] = worker(path)
-
 
             #results.append(worker(path))
         except Exception as e:
@@ -142,7 +141,7 @@ def run_parallel(image_paths, worker, workers=None, pool = None):
 if __name__ == "__main__":
     from cluster.worker import process_image
 
-    paths = find_images("images")
+    paths = find_images("data")
 
     #serial
     out = run_serial(paths, process_image)
