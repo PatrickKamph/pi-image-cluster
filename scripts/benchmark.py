@@ -33,7 +33,9 @@ from scripts.verification import compare_detections
 from multiprocessing import Pool
 
 REPEATS = 3
-IMAGE_DIR = "../data"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+IMAGE_DIR = PROJECT_ROOT / "data"
+RESULTS_DIR = PROJECT_ROOT / "results"
 
 
 def extract_processed_paths(results):
@@ -223,7 +225,7 @@ def main():
             print(f"  Problem: {reason}")
 
 
-    save_results(rows, Path("../results"))
+    save_results(rows, RESULTS_DIR)
 
 
 if __name__ == "__main__":
