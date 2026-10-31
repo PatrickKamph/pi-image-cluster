@@ -69,7 +69,7 @@ def validate_run(out, paths, serial_paths=None):
 
 
     expected = len(image_lists)
-    processed = set(results.keys())
+    processed = len(results)
 
     missing = expected - processed
     if missing:
@@ -89,12 +89,14 @@ def validate_run(out, paths, serial_paths=None):
 def time_serial(paths, worker, repeats, serial_paths = None):
     """run serial multiple times and return the median time"""
     times = []
+    last_results = {}
 
     # Ensure main process PyTorch intra-op threads are strictly locked to 1
     torch.set_num_threads(1)
 
     for i in range(repeats):
         out = run_serial(paths, worker)
+        last_results = out.get('results', {})
 
 
         if serial_paths is None:
@@ -107,7 +109,7 @@ def time_serial(paths, worker, repeats, serial_paths = None):
 
         times.append(out["total_seconds"])
 
-    return statistics.median(times), serial_paths
+    return statistics.median(times), serial_paths, last_results
 
 
 def time_parallel(paths, worker, n_workers, repeats, serial_paths):
@@ -115,6 +117,7 @@ def time_parallel(paths, worker, n_workers, repeats, serial_paths):
     times = []
     row_valid = True
     reasons = []
+    last_results = {}
 
 
     # Made it stop calling run parallel over and over which destroyed the workers anytime it was done measuring for
@@ -122,6 +125,8 @@ def time_parallel(paths, worker, n_workers, repeats, serial_paths):
     with Pool(processes=n_workers, initializer=init_worker) as pool:
         for i in range(repeats):
             out = run_parallel(paths, worker, workers=n_workers, pool=pool)
+            last_results = out.get('results', {})
+
             ok, reason = validate_run(out, paths, serial_paths)
 
             if not ok:
@@ -130,7 +135,7 @@ def time_parallel(paths, worker, n_workers, repeats, serial_paths):
 
             times.append(out["total_seconds"])
 
-    return statistics.median(times), row_valid, "; ".join(reasons)
+    return statistics.median(times), row_valid, "; ".join(reasons), last_results
 
 
 def save_results(rows, out_dir):
@@ -183,11 +188,11 @@ def main():
     
     """
 
-    run_serial(paths, process_image)
+    #run_serial(paths, process_image)
 
 
     print("Timing serial baseline...")
-    baseline, serial_paths = time_serial(paths, process_image, REPEATS)
+    baseline, serial_paths, serial_results = time_serial(paths, process_image, REPEATS)
 
     print(f"Serial baseline: {baseline:.3f} seconds")
 
@@ -201,7 +206,13 @@ def main():
     print("-" * 54)
 
     for w in worker_counts:
-        t, row_valid, reason = time_parallel(paths, process_image, w, REPEATS, serial_paths)
+        t, row_valid, reason, parallel_results = time_parallel(paths, process_image, w, REPEATS, serial_paths)
+
+
+        # Creating tha json file
+        errors, warnings, output_list = compare_detections(serial_results=serial_results, parallel_results=parallel_results, image_list=image_lists)
+        record_final(errors, warnings, output_list)
+
 
         speedup = baseline / t if t > 0 else 0
         efficiency = speedup / w
