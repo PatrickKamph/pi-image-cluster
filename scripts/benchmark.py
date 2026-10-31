@@ -205,13 +205,10 @@ def main():
     )
     print("-" * 54)
 
+    first_file = list(serial_results.keys())[0] if serial_results else "image1.jpg"
+
     for w in worker_counts:
         t, row_valid, reason, parallel_results = time_parallel(paths, process_image, w, REPEATS, serial_paths)
-
-
-        # Creating tha json file
-        errors, warnings, output_list = compare_detections(serial_results=serial_results, parallel_results=parallel_results, image_list=image_lists)
-        record_final(errors, warnings, output_list)
 
 
         speedup = baseline / t if t > 0 else 0
@@ -235,6 +232,30 @@ def main():
 
         if not row_valid:
             print(f"  Problem: {reason}")
+
+    # Creating tha json file
+
+    # This is purely to test if the output log works
+    bad_results = {
+        first_file: [
+            {
+                "name": "person",
+                "confidence": 0.95
+            },
+            {
+                "name": "cat",
+                "confidence": 0.95
+            },
+            {
+                "name": "cat",
+                "confidence": 0.95
+            }
+        ]
+    }
+
+
+    errors, warnings, output_list = compare_detections(serial_results=serial_results, parallel_results=bad_results, image_list=image_lists)
+    record_final(errors, warnings, output_list)
 
 
     save_results(rows, RESULTS_DIR)
