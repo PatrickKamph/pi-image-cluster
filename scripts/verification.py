@@ -5,7 +5,7 @@ import math
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RESULTS_DIR = PROJECT_ROOT / "results"
+RESULTS_DIR = PROJECT_ROOT / "json_results"
 
 def load_run(path):
     """
@@ -62,7 +62,7 @@ def record_final(errors: list[str], warnings: list[str], data: list[dict[str, An
 
     }
 
-    with open(RESULTS_DIR/"test1.json", "w", encoding="utf-8") as json_file:
+    with open(RESULTS_DIR/"final_results.json", "w", encoding="utf-8") as json_file:
 
         json.dump(structured_output, json_file, indent=4)
 
