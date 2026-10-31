@@ -169,10 +169,15 @@ def compare_detections(serial_results: dict, parallel_results: dict, image_list:
         s_boxes, p_boxes = serial_results.get(file_name), parallel_results.get(file_name)
 
         def freeze(boxes):
+            if not boxes:
+                return []
             return [tuple(sorted(b.items())) for b in boxes]
 
-        s_frozen = freeze(s_boxes)
-        p_frozen = freeze(p_boxes)
+        s_boxes_list = s_boxes if s_boxes else []
+        p_boxes_list = p_boxes if p_boxes else []
+
+        s_frozen = freeze(s_boxes_list)
+        p_frozen = freeze(p_boxes_list)
 
         counts_s = Counter(s_frozen)
         counts_p = Counter(p_frozen)
@@ -181,13 +186,13 @@ def compare_detections(serial_results: dict, parallel_results: dict, image_list:
         remain_b = counts_p - counts_s # Any additions
 
         # The avg for serial
-        if len(s_boxes) > 0:
+        if s_boxes_list:
             s_avg = sum(item['confidence'] for item in s_boxes) / len(s_boxes)
         else:
             s_avg = 0.0
 
         # The avg for parallel
-        if len(p_boxes) > 0:
+        if p_boxes_list:
             p_avg = sum(item['confidence'] for item in p_boxes) / len(p_boxes)
         else:
             p_avg = 0.0
