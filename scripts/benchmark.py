@@ -28,7 +28,7 @@ from pathlib import Path
 
 from cluster.driver import find_images, run_serial, run_parallel, image_list
 from cluster.worker import process_image, init_worker
-from scripts.verification import compare_detections
+from scripts.verification import compare_detections, record_final
 
 from multiprocessing import Pool
 
