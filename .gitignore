@@ -9,3 +9,4 @@ models/
 .python-version.txt
 .python-version
 images/
+/json_results/
