@@ -1,11 +1,52 @@
 import json
+import os
 from pathlib import Path
 from collections import Counter
 import math
 from typing import Any
+import platform
+import sys
+import torch
+import ultralytics
+from datetime import datetime
+
+from cluster.worker import MODEL_PATH, CONF_THRESHOLD
+
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = PROJECT_ROOT / "json_results"
+
+def build_meta() -> dict[str, Any]:
+    """
+    Will make the meta section of the json files so I dont gotta copy n paste & be easily editable
+
+    args:
+    None
+
+    returns:
+    A dictionary with the specification on the left and the info on the right
+
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    return {
+        'run_timestamp': timestamp,
+        'os': platform.system(),
+        'cpu_count': os.cpu_count() or 1,
+        'runtime': {
+            'python_version': sys.version.split()[0],
+            'torch_version': torch.__version__,
+            'ultralytics_version': ultralytics.__version__
+        },
+        'model_parameters': {
+            'model_name': MODEL_PATH.name,
+            'confidence_threshold': CONF_THRESHOLD
+        }
+    }
+
+
+    pass
 
 def load_run(path):
     """
@@ -44,27 +85,55 @@ def load_run(path):
 
     return data
 
-def record_run():
+def record_run(run_type: str, results: dict[str, Any]) -> Path:
+    """
+    Saves serial or json as its own json file to read results easily
 
-    pass
+    args:
+        run_type: if its serial or parallel
+        results: The results of either serial or parallel
+
+    returns:
+        A json file of serial or parallel containing their results
+
+    """
+
+    if run_type not in {'serial', 'parallel'}:
+        raise ValueError("Invalid run_type! It must be either serial or parallel!")
+
+    output = {
+        'meta': build_meta(),
+        'results': results
+    }
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    out_file = RESULTS_DIR / f"{run_type}_run.json"
+
+    with open(out_file, 'w', encoding="utf-8") as file:
+        json.dump(output, file, indent=4)
+
+    return out_file
 
 def record_final(errors: list[str], warnings: list[str], data: list[dict[str, Any]]) -> None:
 
-    structured_output = {
-        'meta': [
-            {'errors' : errors},
-            {'warnings' : warnings}
-        ],
 
-        'results': [
-            data
-        ]
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+    output = {
+        'meta': build_meta(),
+        'results': {
+            'errors': errors,
+            'warnings': warnings,
+            'discrepancies': data
+        }
 
     }
 
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     with open(RESULTS_DIR/"final_results.json", "w", encoding="utf-8") as json_file:
 
-        json.dump(structured_output, json_file, indent=4)
+        json.dump(output, json_file, indent=4)
 
     pass
 
@@ -207,8 +276,8 @@ def compare_detections(serial_results: dict, parallel_results: dict, image_list:
             diff_dict['file'] = file_name
             diff_dict['match'] = False
             diff_dict['avg_conf_difference'] = diff
-            diff_dict['missing'] = list(remain.elements())
-            diff_dict['extra'] = list(remain_b.elements())
+            diff_dict['missing'] = [dict(item) for item in remain.elements()]
+            diff_dict['extra'] = [dict(item) for item in remain_b.elements()]
 
         output_list.append(diff_dict)
 
