@@ -28,7 +28,7 @@ from pathlib import Path
 
 from cluster.driver import find_images, run_serial, run_parallel, image_list
 from cluster.worker import process_image, init_worker
-from scripts.verification import compare_detections, record_final
+from scripts.verification import compare_detections, record_final, record_run
 
 from multiprocessing import Pool
 
@@ -180,21 +180,13 @@ def main():
     # be only .jpg, .png, and .jpeg
     image_lists = image_list(paths)
 
-
-    """
-    compare_detections(serial_results, parallel_results, image_lists)
-
-    Where would we insert comapre detections? How do we get the results?
-    
-    """
-
-    #run_serial(paths, process_image)
-
-
     print("Timing serial baseline...")
     baseline, serial_paths, serial_results = time_serial(paths, process_image, REPEATS)
 
     print(f"Serial baseline: {baseline:.3f} seconds")
+
+    # Makes the serial results json file
+    record_run("serial", serial_results)
 
 
     rows = []
@@ -207,9 +199,12 @@ def main():
 
     first_file = list(serial_results.keys())[0] if serial_results else "image1.jpg"
 
+    final_parallel_results = {}
+
     for w in worker_counts:
         t, row_valid, reason, parallel_results = time_parallel(paths, process_image, w, REPEATS, serial_paths)
 
+        final_parallel_results = parallel_results
 
         speedup = baseline / t if t > 0 else 0
         efficiency = speedup / w
@@ -253,6 +248,8 @@ def main():
         ]
     }
 
+    # Makes the parallel results json file
+    record_run("parallel", final_parallel_results)
 
     errors, warnings, output_list = compare_detections(serial_results=serial_results, parallel_results=bad_results, image_list=image_lists)
     record_final(errors, warnings, output_list)
