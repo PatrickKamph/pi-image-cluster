@@ -186,7 +186,7 @@ def main():
     print(f"Serial baseline: {baseline:.3f} seconds")
 
     # Makes the serial results json file
-    record_run("serial", serial_results)
+    serial_file = record_run("serial", serial_results)
 
 
     rows = []
@@ -228,31 +228,12 @@ def main():
         if not row_valid:
             print(f"  Problem: {reason}")
 
-    # Creating tha json file
-
-    # This is purely to test if the output log works
-    bad_results = {
-        first_file: [
-            {
-                "name": "person",
-                "confidence": 0.95
-            },
-            {
-                "name": "cat",
-                "confidence": 0.95
-            },
-            {
-                "name": "cat",
-                "confidence": 0.95
-            }
-        ]
-    }
 
     # Makes the parallel results json file
-    record_run("parallel", final_parallel_results)
+    parallel_file = record_run("parallel", final_parallel_results)
 
-    errors, warnings, output_list = compare_detections(serial_results=serial_results, parallel_results=bad_results, image_list=image_lists)
-    record_final(errors, warnings, output_list)
+    summary_data = compare_detections(serial_file=serial_file, parallel_file=parallel_file, image_list=image_lists)
+    record_final(summary_data)
 
 
     save_results(rows, RESULTS_DIR)
