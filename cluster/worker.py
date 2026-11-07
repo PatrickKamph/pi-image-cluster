@@ -12,6 +12,9 @@ import torch
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = PROJECT_ROOT / "models" / "yolo11s.pt"
 
+CONF_THRESHOLD = 0.2
+IOU_THRESHOLD = 0.5
+
 # Thanks python type hints
 model: YOLO | None = None
 
@@ -58,7 +61,7 @@ def process_image(path: str) -> list[str]:
     image = cv2.imread(path)
 
     # Included verbose = False so console isn't cluttered. If you want to see all the deductions you can make it True.
-    results = model(image, conf=0.2, iou=0.5, verbose=False) #Change confidence value depending on the weights. Default was 0.25 but the model was having trouble with detecting the tree lol
+    results = model(image, conf=CONF_THRESHOLD, iou=IOU_THRESHOLD, verbose=False) #Change confidence value depending on the weights. Default was 0.25 but the model was having trouble with detecting the tree lol
     #IOU makes it so that u cant have two boxes too close to each other
 
 
