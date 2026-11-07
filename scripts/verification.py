@@ -2,7 +2,6 @@ import json
 import os
 from pathlib import Path
 from collections import Counter
-import math
 from typing import Any
 import platform
 import sys
@@ -44,9 +43,6 @@ def build_meta() -> dict[str, Any]:
             'confidence_threshold': CONF_THRESHOLD
         }
     }
-
-
-    pass
 
 def load_run(path):
     """
@@ -114,31 +110,8 @@ def record_run(run_type: str, results: dict[str, Any]) -> Path:
 
     return out_file
 
-def record_final(errors: list[str], warnings: list[str], data: list[dict[str, Any]]) -> None:
 
-
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-    output = {
-        'meta': build_meta(),
-        'results': {
-            'errors': errors,
-            'warnings': warnings,
-            'discrepancies': data
-        }
-
-    }
-
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    with open(RESULTS_DIR/"final_results.json", "w", encoding="utf-8") as json_file:
-
-        json.dump(output, json_file, indent=4)
-
-    pass
-
-
-def check_meta(reference, candidate):
+def check_meta(reference: dict, candidate: dict) -> tuple[list[str], list[str]]:
     """
     compares metadata between reference and candidate runs
     returns errors for critical mismatches and warnings for library differences
@@ -155,58 +128,39 @@ def check_meta(reference, candidate):
     errors = []
     warnings = []
 
-    # keys that must match between runs
-    match_keys = ["model", "conf", "iou"]
+    ref_params = ref_meta.get("model_parameters", {}) # serial
+    cand_params = cand_meta.get("model_parameters", {}) # parallel
 
-    for key in match_keys:
-        if key not in ref_meta:
+    # keys that must match between runs
+    model_keys = ["model_name", "confidence_threshold"]
+
+    for key in model_keys:
+        if key not in ref_params:
             errors.append(f"'{key}' missing from reference")
 
-        elif key not in cand_meta:
+        elif key not in cand_params:
             errors.append(f"'{key}' missing from candidate")
 
-        elif key in ref_meta and key in cand_meta:
-            if ref_meta[key] != cand_meta[key]:
-                errors.append(f"'{key}' mismatch: reference has {ref_meta[key]}, candidate has {cand_meta[key]}")
+        elif ref_params[key] != cand_params[key]:
+            errors.append(f"'{key}' mismatch: reference has {ref_params[key]}, candidate has {cand_params[key]}")
 
-    # check library versions (warnings only)
-    if "library_versions" not in ref_meta:
-        warnings.append("'library_versions' missing from reference")
+    ref_runtime = ref_meta.get("runtime", {})
+    cand_runtime = cand_meta.get("runtime", {})
 
-    if "library_versions" not in cand_meta:
-        warnings.append("'library_versions' missing from candidate")
-
-    if "library_versions" in ref_meta and "library_versions" in cand_meta:
-        ref_libs = ref_meta["library_versions"]
-        cand_libs = cand_meta["library_versions"]
-
-        if isinstance(ref_libs, dict) and isinstance(cand_libs, dict):
-            all_packages = sorted(set(ref_libs.keys()) | set(cand_libs.keys()))
-
-            for pkg in all_packages:
-                if pkg not in ref_libs:
-                    warnings.append(f"package '{pkg}' missing from reference")
-
-                if pkg not in cand_libs:
-                    warnings.append(f"package '{pkg}' missing from candidate")
-
-                if pkg in ref_libs and pkg in cand_libs:
-                    if ref_libs[pkg] != cand_libs[pkg]:
-                        warnings.append(f"package '{pkg}' mismatch: reference has {ref_libs[pkg]}, candidate has {cand_libs[pkg]}")
-
-        else:
-            warnings.append("'library_versions' is not a dictionary in one of the runs")
+    for package in ["torch_version", "ultralytics_version", "python_version"]:
+        if ref_runtime.get(package) != cand_runtime.get(package):
+            warnings.append(f"{package} mismatch: reference has {ref_runtime.get(package)}, candidate has {cand_runtime.get(package)}")
 
     return errors, warnings
 
 
-def compare_detections(serial_results: dict, parallel_results: dict, image_list: list[str]) -> tuple[list[str], list[str], list[dict[str, Any]]]:
+def compare_detections(serial_file: Path | str, parallel_file: Path | str, image_list: list[str]) -> dict[str, Any]:
     """
-    Compares the results of run_serial() and run_parallel() and outputs statistics about them.
+    Compares the json files of serial & parallel and outputs statistics about them.
 
     args:
-        serial_results - The output from run_serial()
-        parallel_results - The output from run_parallel()
+        serial_file - Path to serial_run.json
+        parallel_file - Path to parallel_run.json
         image_list - A list of strings which contain the file name/suffix of every image in /data/
 
     returns:
@@ -218,18 +172,37 @@ def compare_detections(serial_results: dict, parallel_results: dict, image_list:
 
 
 
+    serial_path = Path(serial_file)
+    parallel_path = Path(parallel_file)
+
+    if not serial_path.is_file():
+        raise FileNotFoundError(f"Serial run file not found at {serial_path.resolve()}")
+    if not parallel_path.is_file():
+        raise FileNotFoundError(f"Parallel run file not found at {parallel_path.resolve()}")
+
+    serial_data = load_run(serial_path)
+    parallel_data = load_run(parallel_path)
+
+    meta_errors, meta_warnings = check_meta(serial_data, parallel_data)
+
+    serial_results = serial_data.get("results", {})
+    parallel_results = parallel_data.get("results", {})
+
     serial_keys = set(serial_results.keys())
     parallel_keys = set(parallel_results.keys())
 
     warnings = [image for image in image_list if image not in serial_keys]  # reference
     errors = [image for image in image_list if image not in parallel_keys]  # candidate
 
-
-
-    output_list = []
+    detection_discrepancies = []
 
     # If we check by image list instead, if there is any missing image we skipped then it will break which would be bad probably
     all_files = set(serial_keys.union(parallel_keys))
+
+    def freeze(boxes):
+        if not boxes:
+            return []
+        return [tuple(sorted(b.items())) for b in boxes]
 
     for file_name in all_files:
         diff_dict = {}
@@ -237,10 +210,11 @@ def compare_detections(serial_results: dict, parallel_results: dict, image_list:
 
         s_boxes, p_boxes = serial_results.get(file_name), parallel_results.get(file_name)
 
-        def freeze(boxes):
-            if not boxes:
-                return []
-            return [tuple(sorted(b.items())) for b in boxes]
+        # If they completely match then we keep going so it doesnt accidentally set the file as having a discrepancy.
+        if s_boxes == p_boxes:
+            continue
+
+
 
         s_boxes_list = s_boxes if s_boxes else []
         p_boxes_list = p_boxes if p_boxes else []
@@ -268,65 +242,131 @@ def compare_detections(serial_results: dict, parallel_results: dict, image_list:
 
         diff = abs(p_avg - s_avg)
 
+        detection_discrepancies.append(
+            {
+                "file": file_name,
+                "avg_conf_difference": round(diff, 4),
+                'missing': [dict(item) for item in remain.elements()],
+                'extra': [dict(item) for item in remain_b.elements()]
+            }
 
-        # If they completely match then we keep going so it doesnt accidentally set the file as having a discrepancy.
-        if s_boxes == p_boxes:
-            continue
+        )
+
+    return {
+        "meta_errors": meta_errors,
+        "meta_warnings": meta_warnings,
+        "missing_in_serial": warnings,
+        "missing_in_parallel:": errors,
+        "detection_discrepancies": detection_discrepancies,
+        "serial_length": len(serial_results)
+    }
+
+def record_final(summary_data: dict[str, Any]) -> str:
+    """
+    Formats & prints the comparison summary
+
+    args:
+        summary_data: The data from compare_detections()
+
+    returns:
+        A string containing all summary comparison data
+
+
+    """
+
+    percentage_flag = False
+
+    lines = [
+        "=====================================================",
+        "  Final Report  ",
+        "=====================================================",
+        "1. Metadata Comparison:"
+    ]
+
+    # Checks to see if meta has any differences
+
+    meta_errors = summary_data.get("meta_errors", [])
+    meta_warnings = summary_data.get("meta_warnings", [])
+
+    if not meta_errors and not meta_warnings:
+        lines.append("    -Perfect match between serial & parallel meta.")
+    else:
+        percentage_flag = True
+
+        for error in meta_errors:
+            lines.append(f"    Meta Error: {error}")
+        for warning in meta_warnings:
+            lines.append(f"    Meta Warning: {warning}")
+
+
+    # Checks to see if file is missing
+
+    lines.append("\n2. File Completion Check:  ")
+    missing_serial = summary_data.get("missing_in_serial")
+    missing_parallel = summary_data.get("missing_in_parallel")
+
+    if not missing_serial and not missing_parallel:
+        lines.append("    -All images ran in both serial and parallel.")
+    else:
+        if missing_serial:
+            lines.append(f"    Missing in Serial Baseline: {missing_serial}")
+        if missing_parallel:
+            lines.append(f"    Missing in Parallel Baseline: {missing_parallel}")
+
+    if missing_serial:
+        if missing_parallel:
+            file_percentage = len(missing_parallel) /  len(missing_serial)
         else:
-            diff_dict['file'] = file_name
-            diff_dict['match'] = False
-            diff_dict['avg_conf_difference'] = diff
-            diff_dict['missing'] = [dict(item) for item in remain.elements()]
-            diff_dict['extra'] = [dict(item) for item in remain_b.elements()]
+            # CHANGE LATER THIS IS WRONG
 
-        output_list.append(diff_dict)
+            file_percentage = 100
 
+    else:
+        file_percentage = 100
 
-
+    lines.append(f"    Serial/Parallel File Match: {round(file_percentage, 2)}%")
 
 
 
 
+    # Gives all object detection mismatches
 
-    return errors, warnings, output_list
+    lines.append("\n3. Object Detection Discrepancies:  ")
+    discrepancies = summary_data.get("detection_discrepancies", [])
 
+    if not discrepancies:
+        lines.append("    No object or confidence differences across all images.")
+    else:
+        lines.append(f"    Found {len(discrepancies)} file(s) with different detections!")
 
+        for item in discrepancies:
+            lines.append(f"        - File: {item['file']}")
+            lines.append(f"          Avg Confidence Difference: {item['avg_conf_difference']}")
 
-""" Getting the avg confidence if needed in future
-        # The avg for serial
-        if len(s_boxes) > 0:
-            s_avg = sum(item['confidence'] for item in s_boxes) / len(s_boxes)
-        else:
-            s_avg = 0.0
+            if item["missing"]:
+                lines.append(f"          Missing from Parallel: {item['missing']}")
+            if item['extra']:
+                lines.append(f"          Missing from Serial: {item['extra']}")
 
-        # The avg for parallel
-        if len(p_boxes) > 0:
-            p_avg = sum(item['confidence'] for item in p_boxes) / len(p_boxes)
-        else:
-            p_avg = 0.0
+    #if item['extra'] and item['missing']:
+    object_percentage = (len(item['extra']) + len(item['missing'])) / (len(item['extra']) + len(summary_data.get("serial_length", [])))
 
-        diff = abs(p_avg - s_avg)
-"""
-
-""" Would output any missing detections and any additional detections
-counts_s = Counter(s_boxes)
-counts_p = Counter(p_boxes)
-
-# serial = [1, 2, 2, 3]
-# parallel = [1, 2, 3, 4]
-
-# parallel is missing a 2 but has an extra number 4
-# [missing: [2], additional : [4]
+    lines.append(f"    Serial/Parallel Object Match: {round(object_percentage, 2)}%")
 
 
-remain = counts_s - counts_p # Any missing
-remain_b = counts_p - counts_s # Any additions
+    if percentage_flag:
+        lines.append(f"File Match Percentage: 0%")
+        lines.append(f"Complete Metadata Mismatch")
+    else:
+        lines.append(f"File Match: {file_percentage}%")
+        lines.append(f"Object Match: {object_percentage}%")
 
-combined = remain + remain_b
+    lines.append("")
+    lines.append("=====================================================")
 
-diff_dict['missing'] = list(remain.elements())
-diff_dict['extra'] = list(remain_b.elements())
+    output_str = "\n".join(lines)
 
-diff_dict[file_name] = list(combined.elements())
+    print(output_str)
 
-"""
+    return output_str
+
