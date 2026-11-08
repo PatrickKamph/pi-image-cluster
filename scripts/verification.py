@@ -256,7 +256,7 @@ def compare_detections(serial_file: Path | str, parallel_file: Path | str, image
         "meta_errors": meta_errors,
         "meta_warnings": meta_warnings,
         "missing_in_serial": warnings,
-        "missing_in_parallel:": errors,
+        "missing_in_parallel": errors,
         "detection_discrepancies": detection_discrepancies,
         "serial_length": len(serial_results)
     }
@@ -302,8 +302,8 @@ def record_final(summary_data: dict[str, Any]) -> str:
     # Checks to see if file is missing
 
     lines.append("\n2. File Completion Check:  ")
-    missing_serial = summary_data.get("missing_in_serial")
-    missing_parallel = summary_data.get("missing_in_parallel")
+    missing_serial = summary_data.get("missing_in_serial") or []
+    missing_parallel = summary_data.get("missing_in_parallel") or []
 
     if not missing_serial and not missing_parallel:
         lines.append("    -All images ran in both serial and parallel.")
@@ -313,18 +313,15 @@ def record_final(summary_data: dict[str, Any]) -> str:
         if missing_parallel:
             lines.append(f"    Missing in Parallel Baseline: {missing_parallel}")
 
-    if missing_serial:
-        if missing_parallel:
-            file_percentage = len(missing_parallel) /  len(missing_serial)
-        else:
-            # CHANGE LATER THIS IS WRONG
+    total_expected = summary_data.get("serial_length", 0) + len(missing_serial)
 
-            file_percentage = 100
-
+    if total_expected > 0:
+        unique_missing = len(set(missing_serial) | set(missing_parallel))
+        file_percentage = (max(0, total_expected - unique_missing) / total_expected) * 100
     else:
-        file_percentage = 100
+        file_percentage = 100.0
 
-    lines.append(f"    Serial/Parallel File Match: {round(file_percentage, 2)}%")
+    lines.append(f"    Serial/Parallel File Match: {file_percentage:.2f}%")
 
 
 
@@ -333,9 +330,11 @@ def record_final(summary_data: dict[str, Any]) -> str:
 
     lines.append("\n3. Object Detection Discrepancies:  ")
     discrepancies = summary_data.get("detection_discrepancies", [])
+    total_evaluated = summary_data.get("serial_length", 0)
 
     if not discrepancies:
         lines.append("    No object or confidence differences across all images.")
+        object_percentage = 100.0
     else:
         lines.append(f"    Found {len(discrepancies)} file(s) with different detections!")
 
@@ -348,18 +347,21 @@ def record_final(summary_data: dict[str, Any]) -> str:
             if item['extra']:
                 lines.append(f"          Missing from Serial: {item['extra']}")
 
-    #if item['extra'] and item['missing']:
-    object_percentage = (len(item['extra']) + len(item['missing'])) / (len(item['extra']) + len(summary_data.get("serial_length", [])))
+        matching_evaluated = max(0, total_evaluated - len(discrepancies))
+        object_percentage = (matching_evaluated / total_evaluated) * 100 if total_evaluated > 0 else 100.0
 
-    lines.append(f"    Serial/Parallel Object Match: {round(object_percentage, 2)}%")
+    lines.append(f"    Serial/Parallel Object Match: {object_percentage:.2f}%")
 
 
     if percentage_flag:
         lines.append(f"File Match Percentage: 0%")
-        lines.append(f"Complete Metadata Mismatch")
+        lines.append(f"Complete Metadata Mismatch across Serial/Parallel")
     else:
-        lines.append(f"File Match: {file_percentage}%")
-        lines.append(f"Object Match: {object_percentage}%")
+        lines.append(f"")
+        lines.append(f"Summary:")
+        lines.append(f"    Metadata Match across Serial/Parallel")
+        lines.append(f"    File Match: {file_percentage:.2f}%")
+        lines.append(f"    Object Match: {object_percentage:.2f}%")
 
     lines.append("")
     lines.append("=====================================================")
