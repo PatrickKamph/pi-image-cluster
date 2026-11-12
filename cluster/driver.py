@@ -80,10 +80,10 @@ def run_parallel(image_paths, worker, workers=None, pool = None):
     errors = []
     workerP = partial(_safe_call, worker) #this why we can call helper method within imap
 
-    actual_workers = workers or 1
+    actual_workers = workers or (os.cpu_count() or 1)
 
     # need ts for the pi's cuz they got teeny tiny cores
-    chonky = max(1, len(image_paths) // (workers * 4))
+    chonky = max(1, len(image_paths) // (actual_workers * 4))
 
     """
         
