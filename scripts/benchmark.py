@@ -67,19 +67,16 @@ def validate_run(out, paths, serial_paths=None):
 
     image_lists = image_list(paths)
 
+    expected_set = set(serial_paths) if serial_paths is not None else set(image_lists)
+    processed_set = set(results.keys()) if isinstance(results, dict) else extract_processed_paths(results)
 
-    expected = len(image_lists)
-    processed = len(results)
-
-    missing = expected - processed
+    missing = expected_set - processed_set
     if missing:
-        return False
+        return False, f'{len(missing)} missing result(s)'
 
-    extra = processed - expected
+    extra = processed_set - expected_set
     if extra:
-        return False
-
-
+        return False, f'{len(extra)} extra result(s)'
 
     return True, "ok"
 
