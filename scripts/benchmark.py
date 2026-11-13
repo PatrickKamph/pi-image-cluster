@@ -92,7 +92,7 @@ def time_serial(paths: Sequence[str | Path], worker: Callable[[str], Any], repea
 
     Returns:
         A tuple '(median_seconds, serial_paths, last_results)' containing the median execution time, the verified
-        set of all processed paths, and the final run's results dictionary.
+        set of all processed filenames, and the final run's results dictionary.
 
     """
     times = []
@@ -128,7 +128,7 @@ def time_parallel(paths: Sequence[str | Path], worker: Callable[[str], Any], n_w
         worker: Callable function applied to each image.
         n_workers: Number of worker processes in the pool.
         repeats: Number of iterations to do.
-        serial_paths: Set of paths used to validate every single repeat.
+        serial_paths: Set of image filenames used to validate every single repeat.
 
     Returns:
         A tuple of '(median_seconds, row_valid, error_reasons, last_results)' containing the median execution time,

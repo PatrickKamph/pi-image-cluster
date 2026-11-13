@@ -64,7 +64,7 @@ def run_serial(image_paths: Sequence[str | Path], worker: Callable[[str | Path],
     Returns:
         A dictionary containing:
         - 'results' (dict[str, Any]): Mapping of image filename to worker output.
-        - 'errors' (list[dict[str, str]]): List of errors for failed images.
+        - 'errors' (list[dict[str, Any]]): List of errors for failed images.
         - 'total_seconds' (float): Total elapsed execution time.
 
     """
@@ -102,7 +102,7 @@ def _safe_call(worker: Callable[[str | Path], Any], path: str | Path) -> dict[st
     Returns:
         A dictionary which shows the execution status:
             - On success: '{"success": True, "data": <worker_output>, "path": path}'
-            - On failure: '{"success": False, "data": <error_message>, "path": path}'
+            - On failure: '{"success": False, "error": <error_message>, "path": path}'
 
     """
     try:

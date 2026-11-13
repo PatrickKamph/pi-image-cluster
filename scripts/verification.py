@@ -47,11 +47,11 @@ def load_run(path):
     checks to see if meta & results are in dictionary.
 
     Args:
-        path: The directory of the JSON file we are loading
+        path: The file path of the JSON file we are loading
 
     Returns:
         A dictionary of the JSON file contents that have been verified as working.
-        If it contains any incorrect metadata, then it will raise an error.
+        If it is missing required keys, then it will raise an error.
 
 
     """
@@ -95,7 +95,7 @@ def record_run(run_type: str, results: dict[str, Any]) -> Path:
         results: The results of either serial or parallel
 
     Returns:
-        A JSON file of serial or parallel containing their results
+        Path to the saved JSON file of serial or parallel containing their results
 
     """
 
@@ -176,9 +176,13 @@ def compare_detections(serial_file: Path | str, parallel_file: Path | str, image
         image_list: A list of strings which contain the file name/suffix of every image in /data/
 
     returns:
-        warnings - A list of all images in /data/ that have not been processed by run_serial()
-        errors - A list of all images in /data/ that have not been processed by run_parallel()
-        output_list - A list of dictionaries containing comparison statistics of serial and parallel
+        A dictionary containing:
+            - 'meta_errors': Critical metadata mismatches between serial and parallel runs.
+            - 'meta_warnings': Library version differences between runs.
+            - 'missing_in_serial': Images in image_list not processed by serial run.
+            - 'missing_in_parallel': Images in image_list not processed by parallel run.
+            - 'detection_discrepancies': List of dictionaries containing comparison statistics and detection differences.
+            - 'serial_length': Total number of images processed in the serial baseline.
 
     """
 
