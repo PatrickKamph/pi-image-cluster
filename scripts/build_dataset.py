@@ -10,13 +10,22 @@ from pycocotools.coco import COCO
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
-ANNOTATIONS_DIR = DEFAULT_DATA_DIR / "annotations"
 COCO_UNLABELED_ANN_URL = ("http://images.cocodataset.org/annotations/image_info_unlabeled2017.zip")
 ANN_FILE_NAME = "image_info_unlabeled2017.json"
 
 
-def ensure_annotations(download_dir: Path = DEFAULT_DATA_DIR):
-    """Download and extract COCO unlabeled2017 image info if not already present"""
+def ensure_annotations(download_dir: Path | str = DEFAULT_DATA_DIR) -> Path:
+    """
+    Download and extract COCO unlabeled2017 image info if not already present
+
+    Args:
+        download_dir: The directory in which the annotations folder will be stored.
+
+    Returns:
+        The path to the extracted annotation JSON file
+
+    """
+
     ann_file = download_dir / "annotations" / ANN_FILE_NAME
     if ann_file.is_file():
         return ann_file
@@ -39,10 +48,17 @@ def ensure_annotations(download_dir: Path = DEFAULT_DATA_DIR):
     return ann_file
 
 
-def download_coco_unlabeled(num_images: int = 50,data_dir: Path | str = DEFAULT_DATA_DIR,seed: int | None = None,):
+def download_coco_unlabeled(num_images: int = 50, data_dir: Path | str = DEFAULT_DATA_DIR,seed: int | None = None,) -> list[Path]:
     """
     Download unlabeled images from COCO 2017 into the specified data folder 
-    and lists of paths to downloaded images
+
+    Args:
+        num_images: Number of images to download.
+        data_dir: Target directory where images will be saved.
+        seed: Optional random seed for reproducible image sampling.
+
+    Returns:
+        A list of paths to the downloaded image files.
     """
     data_dir = Path(data_dir).resolve()
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -99,7 +115,13 @@ def download_coco_unlabeled(num_images: int = 50,data_dir: Path | str = DEFAULT_
     return downloaded_paths
 
 
-def main():
+def main() -> None:
+    """
+    Parses the CLI arguments and runs the COCO dataset downloader.
+
+    """
+
+
     parser = argparse.ArgumentParser(
         description="Download unlabeled images from MS COCO dataset into a data folder."
     )

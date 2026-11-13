@@ -1,16 +1,30 @@
 import os
 import time
-from pathlib import Path
-from multiprocessing import Pool 
+from collections.abc import Callable, Sequence
 from functools import partial
+from multiprocessing import Pool
+from multiprocessing.pool import Pool as PoolType
+from pathlib import Path
+from typing import Any
+
 from cluster.worker import init_worker
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"} #maybe add more later maybe not
 
 
-def find_images(folder):
-    """return a sorted list of image paths in a folder"""
+def find_images(folder: str | Path) -> list[str]:
+    """
+    Returns a sorted list of image file paths in a folder.
+
+    Args:
+        folder: Directory path to search for image files.
+
+    Returns:
+        A sorted list of string paths to matching file images.
+
+    """
+
     image_paths = []
 
     for item in Path(folder).iterdir():
@@ -22,15 +36,38 @@ def find_images(folder):
     image_paths.sort()
     return image_paths
 
-def image_list(image_paths) -> list[str]:
+def image_list(image_paths: Sequence[str | Path]) -> list[str]:
+    """
+    Grabs the base filenames from a sequence of full image paths.
+
+    Args:
+        image_paths: Sequence of file paths.
+
+    Returns:
+        A list of filename strings including the extensions in order.
+    """
+
     best = []
     for path in image_paths:
         best.append(Path(path).name)
 
     return best
 
-def run_serial(image_paths, worker):
-    """process images one at a time, this is the baseline"""
+def run_serial(image_paths: Sequence[str | Path], worker: Callable[[str | Path], Any]) -> dict[str, Any]:
+    """
+    Process images one at a time as a single process baseline.
+
+    Args:
+        image_paths: Sequence of image file paths to process.
+        worker: Callable function applied to each image path.
+
+    Returns:
+        A dictionary containing:
+        - 'results' (dict[str, Any]): Mapping of image filename to worker output.
+        - 'errors' (list[dict[str, str]]): List of errors for failed images.
+        - 'total_seconds' (float): Total elapsed execution time.
+
+    """
     start = time.perf_counter()
     results = {}
     errors = []
@@ -41,7 +78,6 @@ def run_serial(image_paths, worker):
             file_name = Path(path).name
             results[file_name] = worker(path)
 
-            #results.append(worker(path))
         except Exception as e:
             errors.append({"path": path, "error": str(e)})
 
@@ -56,8 +92,19 @@ def run_serial(image_paths, worker):
 
 
 
-def _safe_call(worker, path):
-    """safely execute worker on path, catching any exceptions"""
+def _safe_call(worker: Callable[[str | Path], Any], path: str | Path) -> dict[str, Any]:
+    """safely execute worker on path, catching any exceptions
+
+    Args:
+        worker: Callable function applied to the image path.
+        path: File path to the target image.
+
+    Returns:
+        A dictionary which shows the execution status:
+            - On success: '{"success": True, "data": <worker_output>, "path": path}'
+            - On failure: '{"success": False, "data": <error_message>, "path": path}'
+
+    """
     try:
         return {
             "success": True, 
@@ -73,8 +120,24 @@ def _safe_call(worker, path):
 
 
 
-def run_parallel(image_paths, worker, workers=None, pool = None):
-    """compare to run serial, runs in parallel"""
+def run_parallel(image_paths: Sequence[str | Path], worker: Callable[[str | Path], Any], workers: int | None = None, pool: PoolType | None = None) -> dict[str, Any]:
+    """
+    Processes images in parallel using multiprocess worker pool.
+
+    Args:
+        image_paths: Sequence of image file paths to process.
+        worker: Callable function applied to each image path.
+        workers: Number of worker processes to spawn if pool is None. Defaults to cpu count or 1.
+        pool: Pre-initialized multiprocessing.pool instance to reuse on multiple benchmark runs.
+
+    Returns:
+        A dictionary containing:
+            - 'results' (dict[str, Any]): Mapping of image filename to worker output.
+            - 'errors' (list[dict[str, Any]]): List of error records for failed images.
+            - 'total_seconds' (float): Elapsed execution time for the dispatch loop.
+
+
+    """
     #
     results = {}
     errors = []
@@ -82,50 +145,24 @@ def run_parallel(image_paths, worker, workers=None, pool = None):
 
     actual_workers = workers or (os.cpu_count() or 1)
 
-    # need ts for the pi's cuz they got teeny tiny cores
     chonky = max(1, len(image_paths) // (actual_workers * 4))
 
-    """
-        
-    Makes it so that instead of taking one image at a time, it gonna send a bundle of images. Helps cuz it means there's
-    less processing (runs every time it wants a new image before). Trying every method to save time :fire: :aura: :sandrone:
-    
-    
-    
-    10/23/2026 - Yanis
-    I changed this the most here tbh
-    
-    The _execute function/method allows benchmark to pass the photos in the same pool instead of making a new one
-    every time, which I think cut down speeds? probably. It cut down the processes at least. Half this stuff was on
-    random stackoverflow boards.
-    
-    Also, I changed the start to be inside the execute function instead of outside, since it was including the amount of time
-    it took to initialize the model and the latency.
-    """
 
-    def _execute(p):
+    def _execute(p: PoolType) -> float:
         start = time.perf_counter()
         for output in p.imap_unordered(workerP, image_paths, chunksize=chonky):
             if output["success"]:
                 results[Path(output["path"]).name] = output["data"]
 
-
-                #results.append(output["data"])
             else:
                 errors.append({"path": output["path"], "error": output["error"]})
         return time.perf_counter() - start
 
     if pool is not None:
         elapsed = _execute(pool)
+
     else:
 
-        """
-        This is honestly the most important part. Since its being initialized with init_worker (from worker.py),
-        all the threads are actually being locked to one per worker, so when being run, it isnt going back to the YOLO
-        base settings of taking ur CPU's best cores. This actually makes it so that we are parallel processing
-        everything! It also makes it so we arent reinitializing the model and the threads every time we call the worker
-        file.
-        """
         with Pool(processes=workers, initializer=init_worker) as p:
             elapsed = _execute(p)
 
@@ -134,26 +171,3 @@ def run_parallel(image_paths, worker, workers=None, pool = None):
         "errors": errors,
         "total_seconds": elapsed,
     }
-
-
-
-
-if __name__ == "__main__":
-    from cluster.worker import process_image
-
-    paths = find_images("data")
-
-    #serial
-    out = run_serial(paths, process_image)
-    print(
-        f"{len(out['results'])} done, {len(out['errors'])} errors, "
-        f"{out['total_seconds']:.2f}s"
-    )
-
-    #parallel
-
-    out_para = run_parallel(paths, process_image)
-    print(
-        f"{len(out_para['results'])} done, {len(out_para['errors'])} errors, "
-        f"{out_para['total_seconds']:.2f}s"
-        )

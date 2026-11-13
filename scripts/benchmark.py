@@ -23,8 +23,10 @@ cv2.setNumThreads(0)
 
 import platform
 import statistics
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from cluster.driver import find_images, run_serial, run_parallel, image_list
 from cluster.worker import process_image, init_worker
@@ -39,25 +41,20 @@ IMAGE_DIR = PROJECT_ROOT / "data"
 RESULTS_DIR = PROJECT_ROOT / "results"
 
 
-def extract_processed_paths(results):
-    """helper method to extract path set from a run's results"""
-    paths = set()
+def validate_run(out: dict[str, Any], paths: Sequence[str | Path], serial_paths: set[str] | None = None) -> tuple[bool, str]:
+    """
+    Checks errors, and compares if number of results matches number of paths
 
-    for r in results:
-        if isinstance(r, dict):
-            path = r["path"]
-        elif isinstance(r, tuple):
-            path = r[0]
-        else:
-            path = r
+    Args:
+        out: Output dictionary returned by run_serial or run_parallel, containing 'results' and 'errors.'
+        paths: Sequence of input image paths passed to the runner.
+        serial_paths: Optional set of baseline filenames to validate against. If it is none, it will
+                      validate against the filenames from paths.
 
-        paths.add(str(path))
-
-    return paths
-
-
-def validate_run(out, paths, serial_paths=None):
-    """checks errors, and compares if number of results matches number of paths"""
+    Returns:
+        A tuple of '(is_valid, reason)', where 'is_valid' is True of no errors or path discrepancies occurred, and
+        'reason' describes the status or failure cause.
+    """
 
     results = out.get("results", [])
     err_list = out.get("errors", [])
@@ -68,7 +65,7 @@ def validate_run(out, paths, serial_paths=None):
     image_lists = image_list(paths)
 
     expected_set = set(serial_paths) if serial_paths is not None else set(image_lists)
-    processed_set = set(results.keys()) if isinstance(results, dict) else extract_processed_paths(results)
+    processed_set = set(results.keys())
 
     missing = expected_set - processed_set
     if missing:
@@ -82,9 +79,22 @@ def validate_run(out, paths, serial_paths=None):
 
 
 # Added serial_pats = None at the end so that it is forced to look at all 100 images. If it fails at doing that,
-# it will give an error :)
-def time_serial(paths, worker, repeats, serial_paths = None):
-    """run serial multiple times and return the median time"""
+# it will give an error
+def time_serial(paths: Sequence[str | Path], worker: Callable[[str], Any], repeats: int, serial_paths: set[str] | None = None) -> tuple[Any, set[str] | None, dict[Any, Any] | Any]:
+    """
+    Run serial multiple times and return the median time and the baseline outputs.
+
+    Args:
+        paths: a list of paths of every image to process represented as a sequence.
+        worker: Callable function applied to each image.
+        repeats: Number of benchmark iterations to run.
+        serial_paths: pre populated set of expected images. If none, it obtains it from the first repeat onwards.
+
+    Returns:
+        A tuple '(median_seconds, serial_paths, last_results)' containing the median execution time, the verified
+        set of all processed paths, and the final run's results dictionary.
+
+    """
     times = []
     last_results = {}
 
@@ -97,7 +107,7 @@ def time_serial(paths, worker, repeats, serial_paths = None):
 
 
         if serial_paths is None:
-           serial_paths = extract_processed_paths(out.get("results", []))
+           serial_paths = set(last_results.keys())
 
         ok, reason = validate_run(out, paths, serial_paths)
         
@@ -109,8 +119,22 @@ def time_serial(paths, worker, repeats, serial_paths = None):
     return statistics.median(times), serial_paths, last_results
 
 
-def time_parallel(paths, worker, n_workers, repeats, serial_paths):
-    """run parallal multiple times and return the median time"""
+def time_parallel(paths: Sequence[str | Path], worker: Callable[[str], Any], n_workers: int, repeats: int, serial_paths: set[str]) -> tuple[float, bool, str, dict[str, Any]]:
+    """
+    Run parallel multiple times and return the median time and baseline data
+
+    Args:
+        paths: Sequence of image paths to process.
+        worker: Callable function applied to each image.
+        n_workers: Number of worker processes in the pool.
+        repeats: Number of iterations to do.
+        serial_paths: Set of paths used to validate every single repeat.
+
+    Returns:
+        A tuple of '(median_seconds, row_valid, error_reasons, last_results)' containing the median execution time,
+        validity flag, failure reasons, and the final repeat's results.
+
+    """
     times = []
     row_valid = True
     reasons = []
@@ -118,7 +142,7 @@ def time_parallel(paths, worker, n_workers, repeats, serial_paths):
 
 
     # Made it stop calling run parallel over and over which destroyed the workers anytime it was done measuring for
-    # that specific core count. Wont be too much of a change on the final portion on the pi's tho.
+    # that specific core count.
     with Pool(processes=n_workers, initializer=init_worker) as pool:
         for i in range(repeats):
             out = run_parallel(paths, worker, workers=n_workers, pool=pool)
@@ -135,8 +159,16 @@ def time_parallel(paths, worker, n_workers, repeats, serial_paths):
     return statistics.median(times), row_valid, "; ".join(reasons), last_results
 
 
-def save_results(rows, out_dir):
-    """save benchmark results to a CSV file"""
+def save_results(rows: list[dict[str, Any]], out_dir: str | Path) -> None:
+    """
+    Save benchmark timing and scaling results to a CSV file
+
+    Args:
+        rows: List of dictionaries representing benchmark rows for each worker count.
+        out_dir: Directory pth where the output CSV file will be written.
+
+
+    """
     if not rows:
         print("\nNo valid rows to save")
         return
@@ -157,7 +189,13 @@ def save_results(rows, out_dir):
 
     print(f"\nSaved results to: {filename}")
 
-def main():
+def main() -> None:
+    """
+    Runs serial and parallel benchmarks.
+
+    """
+
+
     paths = find_images(IMAGE_DIR)
 
     if not paths:
@@ -193,8 +231,6 @@ def main():
         f"{'Speedup':<10}{'Efficiency':<12}{'Valid':<10}"
     )
     print("-" * 54)
-
-    first_file = list(serial_results.keys())[0] if serial_results else "image1.jpg"
 
     final_parallel_results = {}
 

@@ -18,12 +18,9 @@ RESULTS_DIR = PROJECT_ROOT / "json_results"
 
 def build_meta() -> dict[str, Any]:
     """
-    Will make the meta section of the json files so I dont gotta copy n paste & be easily editable
+    Builds the meta portion of all JSON files.
 
-    args:
-    None
-
-    returns:
+    Returns:
     A dictionary with the specification on the left and the info on the right
 
     """
@@ -46,9 +43,17 @@ def build_meta() -> dict[str, Any]:
 
 def load_run(path):
     """
-    opens and parses json file
-    validates top-level structure is dictionary
-    "meta" and "results" MUST exist in dictionary (implement in worker later)
+    opens and parses JSON file, validates top-level structure is dictionary
+    checks to see if meta & results are in dictionary.
+
+    Args:
+        path: The directory of the JSON file we are loading
+
+    Returns:
+        A dictionary of the JSON file contents that have been verified as working.
+        If it contains any incorrect metadata, then it will raise an error.
+
+
     """
     path = Path(path)
 
@@ -83,14 +88,14 @@ def load_run(path):
 
 def record_run(run_type: str, results: dict[str, Any]) -> Path:
     """
-    Saves serial or json as its own json file to read results easily
+    Saves serial/parallel as a JSON file for outside readability.
 
-    args:
-        run_type: if its serial or parallel
+    Args:
+        run_type: If its serial or parallel
         results: The results of either serial or parallel
 
-    returns:
-        A json file of serial or parallel containing their results
+    Returns:
+        A JSON file of serial or parallel containing their results
 
     """
 
@@ -113,8 +118,15 @@ def record_run(run_type: str, results: dict[str, Any]) -> Path:
 
 def check_meta(reference: dict, candidate: dict) -> tuple[list[str], list[str]]:
     """
-    compares metadata between reference and candidate runs
-    returns errors for critical mismatches and warnings for library differences
+    Compares metadata between reference(serial) and candidate(parallel) runs.
+
+    Args:
+        reference: A dictionary containing the dataset of reference (serial baseline)
+        candidate: A dictionary containing the dataset of candidate (parallel baseline)
+
+    Returns:
+        returns errors for critical mismatches and warnings for library differences.
+
     """
     ref_meta = reference.get("meta", {})
     cand_meta = candidate.get("meta", {})
@@ -156,12 +168,12 @@ def check_meta(reference: dict, candidate: dict) -> tuple[list[str], list[str]]:
 
 def compare_detections(serial_file: Path | str, parallel_file: Path | str, image_list: list[str]) -> dict[str, Any]:
     """
-    Compares the json files of serial & parallel and outputs statistics about them.
+    Compares the JSON files of serial & parallel and outputs statistics about them.
 
     args:
-        serial_file - Path to serial_run.json
-        parallel_file - Path to parallel_run.json
-        image_list - A list of strings which contain the file name/suffix of every image in /data/
+        serial_file: Path to serial_run.json
+        parallel_file: Path to parallel_run.json
+        image_list: A list of strings which contain the file name/suffix of every image in /data/
 
     returns:
         warnings - A list of all images in /data/ that have not been processed by run_serial()
@@ -196,7 +208,7 @@ def compare_detections(serial_file: Path | str, parallel_file: Path | str, image
 
     detection_discrepancies = []
 
-    # If we check by image list instead, if there is any missing image we skipped then it will break which would be bad probably
+    # If we check by image list instead, if there is any missing image we skipped then it will break.
     all_files = set(serial_keys.union(parallel_keys))
 
     def freeze(boxes):
@@ -205,12 +217,11 @@ def compare_detections(serial_file: Path | str, parallel_file: Path | str, image
         return [tuple(sorted(b.items())) for b in boxes]
 
     for file_name in all_files:
-        diff_dict = {}
 
 
         s_boxes, p_boxes = serial_results.get(file_name), parallel_results.get(file_name)
 
-        # If they completely match then we keep going so it doesnt accidentally set the file as having a discrepancy.
+        # If they completely match then we keep going so it doesn't accidentally set the file as having a discrepancy.
         if s_boxes == p_boxes:
             continue
 
@@ -265,10 +276,10 @@ def record_final(summary_data: dict[str, Any]) -> str:
     """
     Formats & prints the comparison summary
 
-    args:
+    Args:
         summary_data: The data from compare_detections()
 
-    returns:
+    Returns:
         A string containing all summary comparison data
 
 
@@ -353,15 +364,12 @@ def record_final(summary_data: dict[str, Any]) -> str:
     lines.append(f"    Serial/Parallel Object Match: {object_percentage:.2f}%")
 
 
-    if percentage_flag:
-        lines.append(f"File Match Percentage: 0%")
-        lines.append(f"Complete Metadata Mismatch across Serial/Parallel")
-    else:
-        lines.append(f"")
-        lines.append(f"Summary:")
-        lines.append(f"    Metadata Match across Serial/Parallel")
-        lines.append(f"    File Match: {file_percentage:.2f}%")
-        lines.append(f"    Object Match: {object_percentage:.2f}%")
+
+    lines.append(f"")
+    lines.append(f"Summary:")
+    lines.append(f"    Metadata Match across Serial/Parallel")
+    lines.append(f"    File Match: {file_percentage:.2f}%")
+    lines.append(f"    Object Match: {object_percentage:.2f}%")
 
     lines.append("")
     lines.append("=====================================================")
